@@ -8,7 +8,7 @@ export default function Page({ params}: PageProps) {
 
   return (
     <div className="min-h-screen w-full" style={{background:'white',minHeight: '100vh', width: '100%'}}>
-      <iframe style={{minHeight: '100vh', width: '100%'}} src={`/astro/output_${params.info}/index.html`} frameborder="0"></iframe>
+      <iframe style={{minHeight: '100vh', width: '100%'}} src={`/astro/output_${params.info}/index.html`}></iframe>
     </div>
   );
 }
