@@ -1,59 +1,71 @@
-import path from 'path';
-import fs from 'fs/promises';
-import { pipeline } from 'stream';
-import { promisify } from 'util';
-// funcion que revisa astro y retorna segun el link generado
+import { createClient } from '@supabase/supabase-js'
 
-
-
-export async function POST(request: Request) {
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+)
+export async function GET(request: Request) {
   try {
-    const formData = await request.formData();
+    const { searchParams } = new URL(request.url)
+    const info = searchParams.get('hash')
 
-    const html = formData.get('html') as string;
-    const hash = formData.get('hash') as string;
+    if (!info) {
+      return new Response('Falta hash', { status: 400 })
+    }
+
+    const { data, error } = await supabase.storage
+      .from('astro-pages')
+      .download(`output_${info}/index.html`)
+
+    if (error || !data) {
+      return new Response('Archivo no encontrado', { status: 404 })
+    }
+
+    const htmlText = await data.text()
+
+    return new Response(htmlText, {
+      headers: { 'Content-Type': 'text/html' }
+    })
+  } catch (err) {
+    console.error('Error GET HTML:', err)
+    return new Response('Error interno', { status: 500 })
+  }
+}
+export async function POST(req: Request) {
+  try {
+    const formData = await req.formData()
+    const html = formData.get('html') as string
+    const hash = formData.get('hash') as string
 
     if (!html || !hash) {
-      return new Response(JSON.stringify({ ok: false, error: 'Falta html o hash' }), {
-        status: 400,
-        headers: { 'Content-Type': 'application/json' },
-      });
+      return Response.json({ ok: false, error: 'Falta html o hash' }, { status: 400 })
     }
 
-    // Filtrar archivos
-    const files: File[] = [];
-    for (const [_, value] of formData.entries()) {
-      if (value instanceof File) files.push(value);
+    const htmlFile = new File([html], 'index.html', { type: 'text/html' })
+const { error: htmlError } = await supabase.storage
+  .from('astro-pages')       // nombre del bucket
+  .upload(`output_${hash}/index.html`, htmlFile, { 
+    upsert: true, 
+    contentType: 'text/html'
+  })
+    if (htmlError) throw htmlError
+
+    const files: File[] = []
+    for (const [, value] of formData.entries()) {
+      if (value instanceof File) files.push(value)
     }
 
-    const outputDir = path.join('public', 'astro', 'output_' + hash);
-    const imagesDir = path.join(outputDir, 'images');
-
-    // Crear directorios
-    await fs.mkdir(imagesDir);
-
-    // Guardar HTML
-    const pathHTML = path.join(outputDir, 'index.html');
-    await fs.writeFile(pathHTML, html, 'utf-8');
-    console.log('HTML guardado en:', pathHTML);
-
-    // Guardar imágenes
     for (const file of files) {
-      const filePath = path.join(imagesDir, file.name);
-      const buffer = Buffer.from(await file.arrayBuffer());
-      await fs.writeFile(filePath, buffer);
-      console.log('Imagen guardada correctamente:', filePath);
+      const { error } = await supabase.storage
+        .from('astro-pages')
+        .upload(`output_${hash}/images/${file.name}`, file, { upsert: true })
+
+      if (error) throw error
     }
 
-    return new Response(JSON.stringify({ ok: true, hash, files: files.map(f => f.name) }), {
-      status: 200,
-      headers: { 'Content-Type': 'application/json' },
-    });
+    return Response.json({ ok: true, hash, files: files.map(f => f.name) })
   } catch (err) {
-    console.error('Error en POST:', err);
-    return new Response(JSON.stringify({ ok: false, error: 'Error al guardar archivos' }), {
-      status: 500,
-      headers: { 'Content-Type': 'application/json' },
-    });
+    console.error('Error al subir a Supabase:', err)
+    return Response.json({ ok: false, error: 'Error al subir archivos' }, { status: 500 })
   }
 }

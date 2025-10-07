@@ -1,14 +1,17 @@
-
 interface PageProps {
   params: { info: string };
 }
 
-export default function Page({ params}: PageProps) {
-  // hace una peticion a la api para obtener datos segun el parametro
-
+export default async function Page({ params }: PageProps) {
   return (
-    <div className="min-h-screen w-full" style={{background:'white',minHeight: '100vh', width: '100%'}}>
-      <iframe style={{minHeight: '100vh', width: '100%'}} src={`/astro/output_${params.info}/index.html`}></iframe>
+    <div
+      className="min-h-screen w-full"
+      style={{ background: 'white', minHeight: '100vh', width: '100%' }}
+    >
+      <iframe
+        style={{ minHeight: '100vh', width: '100%' }}
+        src={`/api/astro?hash=${params.info}`}
+      ></iframe>
     </div>
   );
 }
